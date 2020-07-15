@@ -24,7 +24,7 @@ const spotifyApi = new SpotifyWebApi(formattedCreds);
 const app = express();
 
 const allowCrossDomain = (req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'http:/');
+  res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', '*');
   res.header('Access-Control-Allow-Headers', '*');
   next();
