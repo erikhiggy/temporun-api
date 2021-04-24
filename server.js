@@ -1,7 +1,7 @@
 const express = require('express');
 const SpotifyWebApi = require('spotify-web-api-node');
 
-const PORT = 8888;
+const PORT = process.env.PORT || 8888;
 
 const formattedCreds = {
   clientId: process.env.CLIENT_ID,
@@ -33,28 +33,6 @@ const allowCrossDomain = (req, res, next) => {
 app.use(allowCrossDomain);
 app.use(express.json());
 
-app.get('/', (req, res) => {
-  res.send('Working at base endpoint: "/"');
-});
-
-// Sends the auth URL to the frontend to be used for authorization
-app.get('/get-auth-url', (req, res) => {
-  const authURL = spotifyApi.createAuthorizeURL(scopes);
-  res.send(authURL);
-});
-
-// authorize user
-app.get('/authorize', (req, res) => {
-  spotifyApi
-    .authorizationCodeGrant(req.query.code)
-    .then((data) => {
-      res.send(data);
-    })
-    .catch((err) => {
-      res.status(401).send('Unauthorized!', err);
-    });
-});
-
 const accessToken = (user) => new Promise((resolve, reject) => {
   const userObj = JSON.parse(user);
   const api = new SpotifyWebApi(formattedCreds);
@@ -80,6 +58,28 @@ const apiWithToken = (token) => {
   api.setAccessToken(token);
   return api;
 };
+
+app.get('/', (req, res) => {
+  res.send('Working at base endpoint: "/"');
+});
+
+// Sends the auth URL to the frontend to be used for authorization
+app.get('/get-auth-url', (req, res) => {
+  const authURL = spotifyApi.createAuthorizeURL(scopes);
+  res.send(authURL);
+});
+
+// authorize user
+app.get('/authorize', (req, res) => {
+  spotifyApi
+    .authorizationCodeGrant(req.query.code)
+    .then((data) => {
+      res.send(data);
+    })
+    .catch((err) => {
+      res.status(401).send('Unauthorized!', err);
+    });
+});
 
 // api to fetch all user data
 // user info, playlists
@@ -110,23 +110,29 @@ app.get('/features', async (req, res) => {
   const token = await accessToken(req.query.credentials);
   const api = apiWithToken(token);
 
-  const { playlistId } = req.query;
+  const { playlistIds } = req.query;
+  const splitPlaylistIds = playlistIds.split(',');
 
-  api.getPlaylistTracks(playlistId)
+  const playlistsPromises = splitPlaylistIds.map((playlistId) => api.getPlaylistTracks(playlistId));
+
+  Promise.all(playlistsPromises)
     .then((tracksRes) => {
-      const { body } = tracksRes;
-      const { items } = body;
-      const trackIds = items.map((item) => item && item.track && item.track.id);
-      api.getAudioFeaturesForTracks(trackIds)
+      const trackIds = tracksRes.map((response) => {
+        const { body } = response;
+        const { items } = body;
+        return items.map((item) => item.track.id);
+      });
+      const flattenedMap = trackIds.flat();
+      api.getAudioFeaturesForTracks(flattenedMap)
         .then((featureRes) => {
           const features = featureRes.body;
           res.send({
             trackFeatures: features,
           });
-        });
+        }).catch(() => res.status(400).send('Error getting track features.'));
     })
-    .catch((err) => {
-      res.status(404).send(err);
+    .catch(() => {
+      res.status(404).send('Error on overall /features request');
     });
 });
 
@@ -160,6 +166,6 @@ app.get('/createPlaylist', async (req, res) => {
     });
 });
 
-app.listen(process.env.PORT || PORT, () => {
-  console.log('App listening on port', PORT);
+app.listen(PORT, () => {
+  console.log('API listening on port', PORT);
 });
