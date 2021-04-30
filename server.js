@@ -122,7 +122,7 @@ app.get('/features', async (req, res) => {
         const { items } = body;
         return items.map((item) => item.track.id);
       });
-      const flattenedMap = trackIds.flat();
+      const flattenedMap = trackIds.flat().slice(0, 99); // can only take 100 tracks at a time
       api.getAudioFeaturesForTracks(flattenedMap)
         .then((featureRes) => {
           const features = featureRes.body;
