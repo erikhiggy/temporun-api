@@ -85,13 +85,15 @@ app.get('/authorize', (req, res) => {
 // user info, playlists
 app.get('/user', async (req, res) => {
   const token = await accessToken(req.query.credentials);
+  const { page } = req.query;
+  const offset = page * 20;
   const api = apiWithToken(token);
   // get basic account info
   api.getMe()
     .then((userRes) => {
       const userData = userRes.body;
       // get playlists
-      api.getUserPlaylists()
+      api.getUserPlaylists({ offset })
         .then((playlistRes) => {
           const playlists = playlistRes.body;
           res.send({
